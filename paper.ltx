@@ -153,7 +153,7 @@ We report task accuracy (absolute error below 0.5), routing accuracy (deliberati
 
 Table~\ref{tab:results} reports mean and standard deviation across 10 seeds. Table~\ref{tab:difficulty} breaks the same runs down by difficulty.
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{Aggregated results across 10 seeds (mean $\pm$ std).}
 \label{tab:results}
@@ -166,7 +166,7 @@ Model & Accuracy & Routing Acc. & Delib. Rate \\
 \end{tabular}
 \end{table}
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{Accuracy and deliberation rate by difficulty (mean across 10 seeds).}
 \label{tab:difficulty}
@@ -183,21 +183,21 @@ ACP reaches 93.5 percent accuracy, within 0.2 points of Always Deliberate (93.7 
 
 The central result is the routing gradient. ACP deliberates on a small fraction of easy inputs, and on nearly all medium and hard inputs. This is the adaptive behavior the architecture is designed to produce.
 
-\begin{figure}[h]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=0.6\textwidth]{charts/routing_by_difficulty.png}
 \caption{ACP deliberation rate by task difficulty. The monotone increase from Easy to Medium and Hard, together with the ablation in Table~\ref{tab:ablation}, shows that the monitor uses the memory readout rather than a fixed policy.}
 \label{fig:routing}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=0.85\textwidth]{charts/difficulty_breakdown.png}
 \caption{Accuracy by difficulty level for each model. The linear baseline collapses on Hard inputs, while ACP maintains high accuracy by deliberating.}
 \label{fig:accuracy}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=0.6\textwidth]{charts/pareto.png}
 \caption{Accuracy versus deliberation rate. ACP sits near always-deliberate accuracy while deliberating on two-thirds of inputs, and well above the random router.}
@@ -220,7 +220,7 @@ Third, ACP matches always-deliberate accuracy while deliberating on two-thirds o
 
 The monitor in the main experiment sees both the input and the episodic novelty score. To isolate the contribution of the memory readout, we retrain ACP with the novelty term removed, so the monitor sees only $x$. Table~\ref{tab:ablation} reports the result over three seeds.
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{Routing ablation with and without the episodic novelty feature (3 seeds, mean $\pm$ std).}
 \label{tab:ablation}
