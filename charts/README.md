@@ -60,6 +60,7 @@ Keep this folder next to `paper.ltx` when compiling on Overleaf or locally with 
   title = {Think While You Speak: Adaptive Computational Effort in Neural Dialogue Systems},
   author = {Shah, Syed Syab Ahmad and Team MenteE AI},
   year = {2026},
+  doi = {10.5281/zenodo.24353178},
   url = {https://github.com/MenteE-s/adaptive-cognitive-processing},
   note = {MenteE AI, https://menteeai.org}
 }
