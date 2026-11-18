@@ -1,16 +1,19 @@
+"""
+Training loop for ACP. NumPy, CPU only.
+"""
+
 import numpy as np
 from acp_model import ACP
 from data import generate_dataset, fill_episodic_memory
-from baselines import AlwaysFast, AlwaysDeliberate, FixedMLP, RandomRouter, train_baseline
 
 
-def train_acp(X, Y, Y_route, input_dim=32, hidden_dim=48, output_dim=1,
-              memory_size=40, epochs=100, lr=0.01, alpha=1.0, lam=0.1,
-              seed=42):
-    """Train the ACP model. Returns trained model and history dict."""
+def train_acp(X, Y, Y_route, input_dim=16, hidden_dim=48, output_dim=1,
+              memory_size=30, epochs=100, lr=0.01, alpha=1.0, lam=0.1,
+              use_novelty=True, n_easy=15, n_random=15, seed=42):
     model = ACP(input_dim=input_dim, hidden_dim=hidden_dim,
-                output_dim=output_dim, memory_size=memory_size, seed=seed)
-    model = fill_episodic_memory(model)
+                output_dim=output_dim, memory_size=memory_size,
+                use_novelty=use_novelty, seed=seed)
+    model = fill_episodic_memory(model, n_easy=n_easy, n_random=n_random)
 
     history = {'loss': [], 'acc': [], 'route_acc': [], 'delib_rate': []}
 
@@ -30,15 +33,14 @@ def train_acp(X, Y, Y_route, input_dim=32, hidden_dim=48, output_dim=1,
                 x, y, y_route, alpha=alpha, lam=lam
             )
 
-            # SGD update
             for key in grads:
                 arr = getattr(model, key)
                 arr -= lr * grads[key]
 
-            # Hard-decision metrics
-            out, deliberated = model.predict(x)
+            # Thresholding p matches predict() and avoids a second forward pass.
+            deliberated = int(p > 0.5)
             epoch_loss += ((final_out - y) ** 2).item()
-            if abs(out - y) < 0.5:
+            if abs(final_out - y) < 0.5:
                 correct += 1
             if deliberated == int(y_route):
                 route_correct += 1
@@ -54,43 +56,15 @@ def train_acp(X, Y, Y_route, input_dim=32, hidden_dim=48, output_dim=1,
     return model, history
 
 
-def train_all_baselines(X, Y, input_dim=32, hidden_dim=48, output_dim=1,
-                        epochs=100, lr=0.01, seed=42):
-    """Train all baseline models. Returns dict of trained models."""
-    baselines = {}
-
-    # Always Fast
-    bf = AlwaysFast(input_dim=input_dim, hidden_dim=hidden_dim,
-                    output_dim=output_dim, seed=seed)
-    baselines['AlwaysFast'] = train_baseline(bf, X, Y, epochs=epochs, lr=lr)
-
-    # Always Deliberate
-    bd = AlwaysDeliberate(input_dim=input_dim, hidden_dim=hidden_dim,
-                          output_dim=output_dim, seed=seed)
-    baselines['AlwaysDeliberate'] = train_baseline(bd, X, Y, epochs=epochs, lr=lr)
-
-    # Fixed MLP (comparable size)
-    fm = FixedMLP(input_dim=input_dim, hidden_dim=hidden_dim + 8,
-                  output_dim=output_dim, seed=seed)
-    baselines['FixedMLP'] = train_baseline(fm, X, Y, epochs=epochs, lr=lr)
-
-    # Random Router
-    rr = RandomRouter(input_dim=input_dim, hidden_dim=hidden_dim,
-                      output_dim=output_dim, p_deliberate=0.5, seed=seed)
-    baselines['RandomRouter'] = rr  # no training needed
-
-    return baselines
-
-
 if __name__ == "__main__":
-    input_dim = 32
+    input_dim = 16
     hidden_dim = 48
     output_dim = 1
-    memory_size = 40
+    memory_size = 30
     n_samples = 5000
 
-    X, Y, Y_route = generate_dataset(n_samples=n_samples, seed=123,
-                                     input_dim=input_dim)
+    X, Y, Y_route, Y_diff = generate_dataset(n_samples=n_samples, seed=123,
+                                             input_dim=input_dim)
 
     model, history = train_acp(X, Y, Y_route, input_dim=input_dim,
                                hidden_dim=hidden_dim, output_dim=output_dim,

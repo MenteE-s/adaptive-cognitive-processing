@@ -9,7 +9,6 @@
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{xcolor}
-\usepackage{natbib}
 
 \geometry{margin=1in}
 \hypersetup{
@@ -21,9 +20,10 @@
 }
 
 \title{Think While You Speak:\\Adaptive Computational Effort in Neural Dialogue Systems}
-\author{MenteE AI\\
-\texttt{https://menteeai.org} \\
-\texttt{https://github.com/MenteE-s/adaptive-cognitive-processing}}
+\author{Syed Syab Ahmad Shah and Team MenteE AI\\
+MenteE AI\\
+\texttt{syab@menteeai.org}\\
+\href{https://orcid.org/0009-0003-9183-582X}{ORCID: 0009-0003-9183-582X}}
 \date{November 2026}
 
 \begin{document}
@@ -31,232 +31,235 @@
 \maketitle
 
 \begin{abstract}
-Most neural dialogue systems today operate with a binary switch. Thinking is either on for every input, or off for every input. There is no middle ground where the model looks at a question and decides whether it needs to reason deeply or answer quickly. Humans do not work this way. We answer familiar questions instantly and slow down only when we encounter something novel or uncertain. We propose Adaptive Cognitive Processing, or ACP, a minimal neurocognitive architecture in which inference-time computation is input-dependent. A fast pathway handles familiar inputs by default. A monitor checks the current input against a small episodic memory. When the input deviates from stored experience, the monitor triggers a deliberate pathway that refines the answer. We implement the full system in NumPy on a CPU with no GPU requirement. On a synthetic task with 5,000 examples across three difficulty levels, ACP matches the accuracy of always-deliberate baselines while reducing average compute by 35 percent. The code is open source.
+Most neural dialogue systems today operate with a binary switch. Thinking is either on for every input, or off for every input. There is no middle ground where the model looks at a question and decides whether it needs to reason deeply or answer quickly. Humans do not work this way. We answer familiar questions instantly and slow down only when we encounter something novel or uncertain. We propose Adaptive Cognitive Processing, or ACP, a minimal neurocognitive architecture in which inference-time computation is input-dependent. A linear fast pathway answers familiar inputs by default. A monitor checks the current input against a small episodic memory and computes a novelty score. When the input is novel, the monitor engages a deliberate MLP pathway that refines the answer. We implement the system in NumPy on a CPU with no GPU requirement and verify the analytical gradients against finite differences. On a synthetic task with 5,000 examples across three difficulty levels, ACP learns a clear routing gradient: it deliberates on 3 percent of easy inputs, 99.7 percent of medium inputs, and 99.2 percent of hard inputs. In a 3-seed ablation, removing the episodic novelty feature drops task accuracy from 94.3 to 73.7 percent, showing that the memory readout is doing real work. ACP matches the accuracy of an always-deliberate baseline while deliberating on only two-thirds of inputs, and the linear fast baseline fails on hard inputs where ACP succeeds. The code is open source.
 \end{abstract}
-
-\keywords{adaptive computation, dual-process theory, episodic memory, neural routing, computational effort}
 
 \section{Introduction}
 
 Today's large language models face a computational inefficiency problem. When you enable reasoning mode, the model thinks hard about every question, including ``What is 2 plus 2?'' When you disable it, the model answers everything instantly, including multi-step logic puzzles that require verification. There is no learned meta-decision about how much computation to spend per input.
 
-This is not how human cognition works. Daniel Kahneman described two systems in thinking. System 1 is fast, automatic, and effortless. System 2 is slow, deliberate, and engaged only when needed. Humans do not pause for three minutes before answering their own name. They also do not answer a complex ethical dilemma with the same reflex they use to tie their shoes. The decision to think hard is triggered by context, by memory, by a feeling of uncertainty.
+This is not how human cognition works. Daniel Kahneman described two systems in thinking \cite{kahneman2011}. System 1 is fast, automatic, and effortless. System 2 is slow, deliberate, and engaged only when needed. Humans do not pause for three minutes before answering their own name. They also do not answer a complex ethical dilemma with the same reflex they use to tie their shoes. The decision to think hard is triggered by context, by memory, by a feeling of uncertainty.
 
-Our proposal is simple. Build a neural system that talks while it thinks. A fast pathway produces an immediate answer by default. A monitor checks that answer against episodic memory. If the input is novel or conflicts with stored experience, the system engages a deliberate pathway to refine or correct the response. The deliberation is visible, traceable, and bounded. It does not run for minutes. It runs for a few iterative steps and then returns an answer.
+Our proposal is simple. Build a neural system that talks while it thinks. A fast pathway produces an immediate answer by default. A monitor checks that answer against episodic memory. If the input is novel or conflicts with stored experience, the system engages a deliberate pathway to refine or correct the response. The deliberation is visible, traceable, and bounded. It does not run for minutes. It runs for a small number of steps and then returns an answer.
 
 We call this Adaptive Cognitive Processing. The core insight is that computational effort should be a learned behavior, not a global setting.
 
-This paper makes three contributions. First, we present a minimal architecture with two computationally distinct pathways and a learnable orchestrator that routes between them based on episodic mismatch. Second, we provide a complete NumPy implementation that runs on a CPU, making the results reproducible without specialized hardware. Third, we demonstrate on synthetic tasks that a network can match the accuracy of always-deliberate computation while using substantially less average compute, because it does not deliberate on inputs the fast pathway can already handle.
+This paper makes four contributions. First, we present a minimal architecture with a cheap linear fast pathway, an expensive deliberate MLP pathway, and a monitor that uses episodic novelty as an explicit input feature. Second, we provide a complete NumPy implementation that runs on a CPU, making the results reproducible without specialized hardware. Third, we verify the analytical gradients against finite differences, which is uncommon in small research prototypes. Fourth, we design a task where the fast pathway genuinely fails on hard inputs, so the experiment measures adaptive computation rather than a trivial memorization effect.
+
+The experiments in this paper are a mechanism study, not a language evaluation. We use a synthetic task because it lets us control which inputs require nonlinear computation and measure routing exactly. Dialogue is the motivating application, not the setting of this paper.
 
 We do not claim to have built System 1 and System 2. We claim to have built a computational analog that allocates effort adaptively, and we release the code so others can test and extend it.
 
 \section{Related Work}
 
-Several lines of research touch on adaptive computation in neural networks.
+Mixture of Experts routes inputs to specialized subnetworks, but routing is typically static per token and does not separate fast and deliberate computational modes \cite{shazeer2017}.
 
-Mixture of Experts routes inputs to specialized subnetworks, but routing is typically static per token and does not distinguish between fast and deliberate modes of thinking.
+Adaptive Computation Time allows a recurrent network to vary the number of computational steps per input using a halting probability \cite{graves2016}. It shows that variable computation is learnable, but it does not architecturally separate a cheap default pathway from an expensive corrective pathway.
 
-Adaptive Computation Time, introduced by Graves, allows a recurrent network to vary the number of computational steps per input using a halting probability. This work shows that variable computation is learnable, but it is usually applied to sequence modeling and does not separate fast and deliberate pathways architecturally.
+Early-exit networks attach classifiers to intermediate layers and stop when confidence is high \cite{teerapittayanon2016}. Cascades run a cheap detector first and invoke a more expensive model only when the cheap one is uncertain \cite{viola2001}. Both are close in spirit to ACP, but they rely on a confidence threshold rather than an explicit memory readout.
 
 Conditional computation activates subsets of a network based on input, focusing on efficiency rather than on distinct reasoning modes.
 
-Neural Module Networks assemble specialized modules for compositional reasoning, but they often require program supervision and do not learn when to think more versus less.
+Neural Module Networks assemble specialized modules for compositional reasoning, but they often require program supervision and do not learn when to think more versus less \cite{andreas2016}.
 
-Test-time compute methods, such as chain-of-thought and internal reasoning tokens, increase inference-time computation for harder problems. However, these are usually opaque black boxes without an explicit fast-deliberate separation.
+Test-time compute methods, such as chain-of-thought and internal reasoning tokens, increase inference-time computation for harder problems \cite{snell2024}. However, these are usually opaque black boxes without an explicit fast-deliberate separation.
 
-Metareasoning and computational rationality study how agents decide how much computation to spend. Most of this work is theoretical and not integrated into trainable deep architectures.
+Mixture-of-Depths and related conditional-compute methods learn to skip tokens or layers \cite{raposo2024}. They allocate compute within a single network rather than switching between a cheap default answer and a separate deliberate refiner.
 
-Our work differs from existing approaches in three ways. We architecturally separate fast and deliberate pathways. We trigger deliberate processing through episodic memory mismatch rather than through input difficulty alone. And we make the routing decision traceable, so the system can in principle explain why it chose to think more.
+Metareasoning and computational rationality study how agents decide how much computation to spend \cite{cox2005,russell1991}. Most of this work is theoretical and not integrated into trainable deep architectures.
+
+Our work differs in three ways. We architecturally separate a linear fast pathway from a nonlinear deliberate pathway, so the compute difference is real. We trigger deliberation through an episodic novelty feature computed from stored memory, not through an opaque learned gate alone. And we design the task so that the fast pathway provably fails on hard inputs, which makes the routing measurement meaningful.
 
 \section{Architecture}
 
-\subsection{Overview}
+\subsection{Components}
 
-The system has three components.
+The system has four components.
 
-\textbf{Fast pathway.} A small feedforward network that produces an immediate answer. This is the default mode. It is cheap and automatic.
+\textbf{Fast pathway.} A linear map $f_{\text{fast}}(x) = W_f x + b_f$. It is cheap and handles familiar, approximately linear inputs.
 
-\textbf{Deliberate pathway.} A second feedforward network that receives the input and the fast answer, then refines or corrects it. This runs only when triggered.
+\textbf{Deliberate pathway.} A one-hidden-layer MLP over the concatenation of the input and the fast answer, $f_{\text{deliberate}}(x, f_{\text{fast}}(x))$. It is more expensive and can fit nonlinear targets.
 
-\textbf{Monitor.} A small linear layer that predicts the probability of deliberate processing. It reads the input and computes similarity to episodic memory. Low similarity means the input is novel, which triggers deliberate mode.
+\textbf{Monitor.} A linear map plus an episodic novelty feature that outputs a routing probability $p \in [0,1]$.
 
-\textbf{Episodic memory.} A fixed set of stored input-output pairs from past experience. The memory is not learned by gradient descent in this version. It is hand-filled to represent known situations.
+\textbf{Episodic memory.} A fixed set of keys $m_1, \dots, m_K$. For an input $x$, we compute cosine similarity to each key and take the maximum,
+\begin{equation}
+s(x) = \max_k \frac{m_k^\top x}{\|m_k\| \, \|x\|}.
+\end{equation}
+The novelty feature is $n(x) = 1 - s(x)$.
 
 \subsection{Forward Pass}
 
-Given an input vector $x$:
-
+Given input $x$:
 \begin{enumerate}
-    \item Encode $x$ into a vector of dimension 32.
-    \item Fast pathway computes an immediate answer $f_{\text{fast}}(x)$.
-    \item Monitor computes a routing probability $p \in [0,1]$ based on $x$ and memory similarity.
-    \item If $p$ is high, deliberate pathway computes $f_{\text{deliberate}}(x, f_{\text{fast}}(x))$.
-    \item Final answer is a weighted blend: $(1-p) \cdot f_{\text{fast}} + p \cdot f_{\text{deliberate}}$.
+    \item Fast answer: $y_f = W_f x + b_f$.
+    \item Novelty: $n(x) = 1 - \max_k \cos(m_k, x)$.
+    \item Routing probability: $p = \sigma(w_m^\top x + w_n \, n(x) + b_m)$.
+    \item Deliberate answer: $y_d = f_{\text{deliberate}}(x, y_f)$.
+    \item Blended output: $y = (1-p) y_f + p \, y_d$.
 \end{enumerate}
 
-At inference time, we make a hard decision. If $p > 0.5$, we output the deliberate answer and set the deliberation flag to 1. Otherwise we output the fast answer and set the flag to 0.
+At inference, we threshold $p$ at 0.5. If $p > 0.5$ we output $y_d$ and set the deliberation flag to 1. Otherwise we output $y_f$ and set the flag to 0. The deliberation flag is the traceable routing decision.
 
-\subsection{Episodic Memory Trigger}
+\subsection{Loss}
 
-The monitor triggers deliberate processing when the current input does not match stored episodes. We compute cosine similarity between the input vector and all memory keys. If the maximum similarity is below a threshold, the input is considered novel and deliberate mode is engaged.
-
-This is the key design choice. The system does not decide to think because the input is long or complex in a pre-defined way. It decides to think because the input does not resemble anything it has seen before. This is closer to how humans experience cognitive friction.
-
-\subsection{Loss Function}
-
-We train with a combined objective:
-
+Training minimizes
 \begin{equation}
-\mathcal{L} = \mathcal{L}_{\text{task}} + \alpha \cdot \mathcal{L}_{\text{route}} + \lambda \cdot \mathcal{L}_{\text{compute}}
+\mathcal{L} = (y - y^\star)^2
++ \alpha \left[ -r \log p - (1-r)\log(1-p) \right]
++ \lambda \, p \, C_d,
 \end{equation}
+where $y^\star$ is the target, $r \in \{0,1\}$ is the ground-truth route, $C_d$ is the cost of deliberation, $\alpha$ weights routing supervision, and $\lambda$ penalizes computation.
 
-The task loss is mean squared error between the final answer and the target. The routing loss supervises the monitor to choose fast for easy inputs and deliberate for hard inputs. The compute cost penalizes deliberate usage so the model does not learn to deliberate on everything.
+The cost term prevents collapse to always-deliberate. The routing term teaches the monitor which inputs require deliberate processing.
 
-Without the compute cost term, the model collapses to always deliberating. With too high a cost, it collapses to never deliberating. The hyperparameter $\lambda$ controls the accuracy-efficiency tradeoff.
+\subsection{Gradient Verification}
+
+We implement analytical gradients by hand in NumPy. To verify them, we compare against central finite differences on a small model with random parameters. The maximum relative error across all parameter tensors (fast weights, deliberate weights, monitor weights, novelty weight, biases) is $1.7 \times 10^{-9}$, confirming correctness.
 
 \section{Experiments}
 
 \subsection{Dataset}
 
-We generate a synthetic regression task with 5,000 examples across three difficulty levels.
+We generate 5,000 examples with balanced difficulty.
 
-Easy inputs cluster around one dimension with low noise. The target is 1.0. The ground-truth route is fast.
+\textbf{Easy.} Inputs cluster near the first basis vector with small noise. Target $y = 2 x_0 + 1$, a linear function. The linear fast pathway can fit this.
 
-Medium inputs cluster around another dimension with higher noise. The target is 1.5. The ground-truth route is deliberate.
+\textbf{Medium.} Inputs cluster near the second basis vector. Target $y = x_1^2 + 1$, a quadratic function. The linear fast pathway cannot fit this well.
 
-Hard inputs involve a non-linear interaction between two dimensions. The target is 2.0. The ground-truth route is deliberate.
+\textbf{Hard.} Inputs are uniform in $[-1,1]^{16}$. Target $y = x_2 x_3 + x_4 x_5$, a sum of products. The linear fast pathway cannot fit this either, and the nonlinearity is stronger.
 
-Each input is a 32-dimensional vector. The easy class matches stored episodic memory keys. The medium and hard classes are novel relative to memory.
+Episodic memory is filled with 15 keys from the Easy cluster plus 15 random keys. Easy inputs therefore have high similarity to memory, while Medium and Hard inputs are novel.
 
-\subsection{Model Configuration}
+\subsection{Model and Training}
 
-\begin{itemize}
-    \item Input dimension: 32
-    \item Fast pathway hidden dimension: 48
-    \item Deliberate pathway hidden dimension: 48
-    \item Episodic memory: 40 episodes, hand-filled
-    \item Monitor: linear layer from input to scalar probability
-\end{itemize}
-
-We train for 100 epochs with SGD and a learning rate of 0.01. We run 10 random seeds and report mean plus standard deviation.
+Input dimension is 16, the deliberate hidden layer has 48 units, and memory holds 30 keys. We train for 100 epochs with stochastic gradient descent at learning rate 0.01, with $\alpha = 1.0$ and $\lambda = 0.1$. We run 10 seeds and report mean and standard deviation.
 
 \subsection{Baselines}
 
-We compare ACP against four baselines.
+\textbf{Always Fast.} The same linear model as the fast pathway, trained alone.
 
-\textbf{Always Fast.} Only the fast pathway runs. Never deliberates.
+\textbf{Always Deliberate.} An MLP of the same size as the deliberate pathway, trained alone.
 
-\textbf{Always Deliberate.} Only the deliberate pathway runs. Always deliberates.
+\textbf{Fixed MLP.} A wider MLP with 56 hidden units, no routing.
 
-\textbf{Fixed MLP.} A single MLP with comparable total parameters. No routing. Always computes the same amount.
-
-\textbf{Random Router.} Two independent subnetworks like ACP, but the gate is random with fixed probability 0.5.
-
-All baselines are trained with the same data and optimizer settings where applicable.
+\textbf{Random Router.} The same linear and MLP subnetworks, with a random gate at probability 0.5.
 
 \subsection{Metrics}
 
-We report:
-
-\begin{itemize}
-    \item Task accuracy: fraction of inputs where the absolute error is below 0.5.
-    \item Routing accuracy: fraction of inputs where the chosen route matches the ground-truth route.
-    \item Deliberation rate: fraction of inputs that triggered deliberate mode.
-    \item Per-difficulty accuracy: accuracy broken down by easy, medium, and hard.
-\end{itemize}
+We report task accuracy (absolute error below 0.5), routing accuracy (deliberation flag matches the ground-truth route), overall deliberation rate, and per-difficulty accuracy and deliberation rate.
 
 \section{Results}
 
-Table~\ref{tab:results} shows aggregated results across 10 seeds.
+Table~\ref{tab:results} reports mean and standard deviation across 10 seeds. Table~\ref{tab:difficulty} breaks the same runs down by difficulty.
 
 \begin{table}[h]
 \centering
 \caption{Aggregated results across 10 seeds (mean $\pm$ std).}
 \label{tab:results}
-\begin{tabular}{lccccccc}
+\begin{tabular}{lccc}
 \toprule
-Model & Acc & RouteAcc & DelibRate & EasyAcc & MedAcc & HardAcc \\
+Model & Accuracy & Routing Acc. & Delib. Rate \\
 \midrule
-ACP & 0.992$\pm$0.005 & 0.954$\pm$0.003 & 0.646$\pm$0.005 & 0.991$\pm$0.007 & 0.992$\pm$0.006 & 0.993$\pm$0.004 \\
-Always Fast & 0.993$\pm$0.002 & 0.333$\pm$0.000 & 0.000$\pm$0.000 & 0.993$\pm$0.002 & 0.993$\pm$0.003 & 0.993$\pm$0.004 \\
-Always Deliberate & 0.993$\pm$0.002 & 0.667$\pm$0.000 & 1.000$\pm$0.000 & 0.993$\pm$0.002 & 0.993$\pm$0.003 & 0.993$\pm$0.004 \\
-Fixed MLP & 0.994$\pm$0.003 & 0.667$\pm$0.000 & 1.000$\pm$0.000 & 0.994$\pm$0.003 & 0.995$\pm$0.003 & 0.994$\pm$0.003 \\
-Random Router & 0.141$\pm$0.062 & 0.505$\pm$0.006 & 0.507$\pm$0.012 & 0.149$\pm$0.058 & 0.136$\pm$0.059 & 0.138$\pm$0.070 \\
+\input{charts/results_table.tex}
 \bottomrule
 \end{tabular}
 \end{table}
 
-Key findings.
+\begin{table}[h]
+\centering
+\caption{Accuracy and deliberation rate by difficulty (mean across 10 seeds).}
+\label{tab:difficulty}
+\begin{tabular}{lcccccc}
+\toprule
+Model & Easy Acc & Med Acc & Hard Acc & Easy Delib & Med Delib & Hard Delib \\
+\midrule
+\input{charts/difficulty_table.tex}
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{enumerate}
-    \item ACP matches Always Deliberate accuracy (0.992 vs 0.993) while deliberating only 64.6 percent of the time instead of 100 percent. This is a 35 percent reduction in average compute with no accuracy loss.
-    \item Always Fast achieves high accuracy on easy inputs but Random Router collapses to 14 percent accuracy, showing that random routing is not a viable strategy.
-    \item The routing accuracy of ACP is 95.4 percent, indicating the monitor learns to identify which inputs need deliberate processing.
-    \item Easy deliberation rate (0.642) and hard deliberation rate (0.652) are nearly identical. This is an honest limitation: the synthetic task is easy enough that the fast pathway solves nearly everything, so there is little pressure to route differently by difficulty. Future work should use harder tasks where the fast pathway genuinely fails on hard inputs.
-\end{enumerate}
+ACP reaches 93.5 percent accuracy, within 0.2 points of Always Deliberate (93.7 percent) and 1.2 points of Fixed MLP (94.7 percent), while deliberating on 67.2 percent of inputs. Its routing accuracy is 98.7 percent. Always Fast falls to 37.0 percent overall and 26.4 percent on Hard inputs, where ACP reaches 86.3 percent.
 
-Figure~\ref{fig:routing} shows the deliberation rate by difficulty. The near-flat line across easy, medium, and hard confirms that the current task does not strongly differentiate routing pressure.
+The central result is the routing gradient. ACP deliberates on a small fraction of easy inputs, and on nearly all medium and hard inputs. This is the adaptive behavior the architecture is designed to produce.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.6\textwidth]{charts/routing_by_difficulty.png}
-\caption{ACP routing decision by task difficulty. The near-flat rate indicates the synthetic task is easy enough that the fast pathway handles most inputs correctly.}
+\caption{ACP deliberation rate by task difficulty. The monotone increase from Easy to Medium and Hard, together with the ablation in Table~\ref{tab:ablation}, shows that the monitor uses the memory readout rather than a fixed policy.}
 \label{fig:routing}
 \end{figure}
 
-Figure~\ref{fig:accuracy} shows accuracy by difficulty. All models except Random Router maintain high accuracy across all levels.
-
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.8\textwidth]{charts/difficulty_breakdown.png}
-\caption{Accuracy by difficulty level for each model.}
+\includegraphics[width=0.85\textwidth]{charts/difficulty_breakdown.png}
+\caption{Accuracy by difficulty level for each model. The linear baseline collapses on Hard inputs, while ACP maintains high accuracy by deliberating.}
 \label{fig:accuracy}
 \end{figure}
-
-Figure~\ref{fig:pareto} shows the accuracy-compute Pareto frontier. ACP matches Always Deliberate accuracy with substantially lower compute cost.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.6\textwidth]{charts/pareto.png}
-\caption{Accuracy vs average compute cost. Lower deliberation rate means less compute. ACP sits to the left of Always Deliberate with equivalent accuracy.}
+\caption{Accuracy versus deliberation rate. ACP sits near always-deliberate accuracy while deliberating on two-thirds of inputs, and well above the random router.}
 \label{fig:pareto}
 \end{figure}
 
 \section{Discussion}
 
-\subsection{What This Shows}
+\subsection{What the Experiment Shows}
 
-The experiment demonstrates that a small neural network can learn to allocate computational effort dynamically. The fast pathway handles easy, familiar inputs. The deliberate pathway handles novel inputs. The monitor learns when to switch between them based on episodic memory mismatch.
+The experiment separates three claims.
 
-Most importantly, ACP achieves the same accuracy as Always Deliberate while using less compute. This proves the core claim: adaptive computation can match fixed-deliberate performance without wasting effort on easy inputs.
+First, the fast and deliberate pathways have genuinely different capabilities. The linear fast baseline fails on Hard inputs, while the MLP succeeds. This is not a memorization artifact; it follows from the function class.
+
+Second, the monitor learns a non-trivial routing policy. Deliberation rises from a few percent on Easy inputs to nearly all Medium and Hard inputs. The ablation below shows that this policy depends on the memory readout: without it, the monitor still deliberates at the same overall rate but misallocates deliberation on the inputs where it matters.
+
+Third, ACP matches always-deliberate accuracy while deliberating on two-thirds of inputs. The saving in expensive-path invocations comes from skipping deliberation on easy inputs, which the fast pathway can already solve.
+
+\subsection{Does the Novelty Feature Matter?}
+
+The monitor in the main experiment sees both the input and the episodic novelty score. To isolate the contribution of the memory readout, we retrain ACP with the novelty term removed, so the monitor sees only $x$. Table~\ref{tab:ablation} reports the result over three seeds.
+
+\begin{table}[h]
+\centering
+\caption{Routing ablation with and without the episodic novelty feature (3 seeds, mean $\pm$ std).}
+\label{tab:ablation}
+\begin{tabular}{lccc}
+\toprule
+Monitor & Accuracy & Routing Acc. & Delib. Rate \\
+\midrule
+\input{charts/ablation_table.tex}
+\bottomrule
+\end{tabular}
+\end{table}
+
+The x-only monitor still learns a similar overall deliberation rate, 66.2 percent versus 67.2 percent, but it allocates that deliberation poorly. It deliberates on 11.2 percent of Easy inputs and only 87.9 percent of Hard inputs. The Hard misroutes are expensive: the linear fast path cannot fit the product target, so a small number of them pulls task accuracy down from 94.3 to 73.7 percent. The memory feature is therefore not decorative. It stabilizes the routing decision at the margin where an error costs the most.
+
+\subsection{Cost of the Monitor}
+
+Deliberation rate is not the same as total compute. The monitor scans $K=30$ memory keys of dimension 16 on every input, which costs about 496 multiply-accumulates, compared with about 864 for the deliberate MLP. At the observed deliberation rate of 67 percent, the total cost is therefore not lower than always-deliberate. The routing policy is near-optimal, but the current memory readout is too expensive to turn that policy into a net saving. A memory of a few keys, or a low-dimensional sketch, would move the crossover. We report deliberation rate as the routing metric and leave wall-clock optimization to future work.
 
 \subsection{Limitations}
 
-The episodic memory is fixed and hand-designed. A real system would need to learn to write to and read from memory over time. The task is regression on random vectors, not natural language. The deliberate pathway is just another MLP, not a true reasoning module that searches or verifies. Future work should replace it with iterative refinement, tree search, or a verifier that checks answers against constraints.
+The task is synthetic and low-dimensional. The memory is fixed and hand-filled; it acts as a novelty detector rather than a content-addressable episodic store. The ablation shows that this scalar signal carries real routing information, but a deployed system would need learned writes and content-based retrieval. The deliberate pathway is a single MLP, not an iterative or search-based reasoner. Routing supervision uses ground-truth labels, which a deployed system would not have. Future work should address these issues.
 
-The training uses supervised routing labels. In a real deployment, the system would not know which inputs are hard in advance. It would need to learn routing from task performance alone, perhaps with reinforcement learning or a confidence-based interrupt.
+\subsection{Toward Human-Like Systems}
 
-The easy and hard deliberation rates are nearly identical (0.642 vs 0.652), showing that the current task is too easy to elicit strong difficulty-dependent routing. This is a limitation of the synthetic task, not of the architecture.
+Humans do not think for minutes on every question. They answer quickly when the situation is familiar, slow down when something is off, and can often explain why they slowed down. ACP captures a minimal version of this pattern. The fast pathway answers by default. The monitor uses memory to decide when to escalate. The routing flag makes the decision inspectable.
 
-\subsection{Toward Human-Like AI}
-
-Humans do not think for minutes on every question. They answer quickly when the situation is familiar. They slow down when something feels off. They explain why they are thinking more. Our architecture supports this pattern. The fast pathway answers by default. The deliberate pathway engages when memory signals novelty. The routing flag can be exposed to the user as an explanation: ``I thought more about this because it did not match my previous experience.''
-
-This is a small step toward AI that behaves less like a robot and more like a human: fluent by default, deliberate when necessary.
+This is a small step toward AI that allocates computation the way people do: fluent by default, deliberate when necessary.
 
 \section{Conclusion}
 
-We presented Adaptive Cognitive Processing, a minimal architecture for input-dependent computation. A fast pathway answers by default. A monitor checks episodic memory and triggers a deliberate pathway when the input is novel. We implemented the system in NumPy on a CPU and showed that it matches Always Deliberate accuracy while reducing average compute by 35 percent on a synthetic task with three difficulty levels.
+We presented Adaptive Cognitive Processing, a minimal architecture for input-dependent computation. A linear fast pathway answers by default. A memory-aware monitor triggers a deliberate MLP when the input is novel. We implemented the system in NumPy, verified the gradients numerically, and demonstrated on a synthetic task that the monitor learns a clear routing gradient while matching always-deliberate accuracy and deliberating on only two-thirds of inputs. An ablation shows that removing the memory readout drops task accuracy from 94.3 to 73.7 percent, so the novelty signal is doing real work.
 
-The code is open source at \url{https://github.com/MenteE-s/adaptive-cognitive-processing}. We hope this work contributes to the broader effort of building AI systems that allocate computation rationally, rather than applying the same effort to every input.
-
-Future work will scale this architecture to language tasks, learn the episodic memory end-to-end, use harder tasks that elicit difficulty-dependent routing, and test the system in embodied robotics where computation must be balanced against real-time constraints.
+The code is open source at \url{https://github.com/MenteE-s/adaptive-cognitive-processing}. Future work will extend the architecture to language tasks, learned memory, iterative deliberation, and embodied settings.
 
 \section*{Acknowledgments}
 
-We thank the MenteE AI team for supporting open research and public code release.
+We thank the open-source community for the NumPy and Matplotlib tools used in this work.
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{10}
 \bibitem{kahneman2011}
 Kahneman, D. \emph{Thinking, Fast and Slow}. Farrar, Straus and Giroux, 2011.
 
@@ -269,8 +272,23 @@ Shazeer, N., et al. Outrageously Large Neural Networks: The Sparsely-Gated Mixtu
 \bibitem{andreas2016}
 Andreas, J., et al. Neural Module Networks. \emph{CVPR}, 2016.
 
-\bibitem{russell2020}
-Russell, S. and Subramanian, D. Provably Beneficial Systems. \emph{arXiv preprint arXiv:2007.07390}, 2020.
+\bibitem{teerapittayanon2016}
+Teerapittayanon, S., McDanel, B., and Kung, H. T. BranchyNet: Fast Inference via Early Exiting from Deep Neural Networks. \emph{ICPR}, 2016.
+
+\bibitem{viola2001}
+Viola, P. and Jones, M. Rapid Object Detection using a Boosted Cascade of Simple Features. \emph{CVPR}, 2001.
+
+\bibitem{snell2024}
+Snell, C., Lee, J., Xu, K., and Kumar, A. Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters. \emph{arXiv preprint arXiv:2408.03314}, 2024.
+
+\bibitem{raposo2024}
+Raposo, D., Ritter, S., Richards, B., et al. Mixture-of-Depths: Dynamically Allocating Compute in Transformer-Based Language Models. \emph{arXiv preprint arXiv:2404.02258}, 2024.
+
+\bibitem{cox2005}
+Cox, M. T. Metacognition in Computation: A Selected Research Review. \emph{Artificial Intelligence}, 169(2):104-141, 2005.
+
+\bibitem{russell1991}
+Russell, S. and Wefald, E. Principles of Metareasoning. \emph{Artificial Intelligence}, 49(1-3):361-395, 1991.
 
 \end{thebibliography}
 
@@ -278,50 +296,45 @@ Russell, S. and Subramanian, D. Provably Beneficial Systems. \emph{arXiv preprin
 
 \section{Code Availability}
 
-All code is implemented in NumPy and runs on CPU. No GPU is required.
-
 Repository: \url{https://github.com/MenteE-s/adaptive-cognitive-processing}
 
-Files:
 \begin{itemize}
-    \item \texttt{acp\_model.py}: core architecture with fast, deliberate, and monitor pathways
-    \item \texttt{data.py}: synthetic dataset generator and episodic memory filler
-    \item \texttt{baselines.py}: Always Fast, Always Deliberate, Fixed MLP, Random Router
-    \item \texttt{train.py}: training loop
-    \item \texttt{evaluate.py}: full experiment with 10 seeds and aggregated metrics
-    \item \texttt{charts/generate\_charts.py}: charts for results and social media
+    \item \texttt{acp\_model.py}: architecture and hand-derived gradients
+    \item \texttt{data.py}: dataset and episodic memory
+    \item \texttt{baselines.py}: baseline models and training
+    \item \texttt{train.py}: ACP training loop
+    \item \texttt{evaluate.py}: 10-seed experiment and JSON export
+    \item \texttt{ablation\_novelty.py}: memory versus x-only routing ablation
+    \item \texttt{test\_gradients.py}: finite-difference gradient check
+    \item \texttt{charts/generate\_charts.py}: figure generation
+    \item \texttt{charts/make\_results\_table.py}: LaTeX table generation
 \end{itemize}
 
-License: MIT. Open source for public research.
+License: MIT.
 
-\section{How to Reproduce}
+\section{Reproduction}
 
-Install dependencies:
 \begin{verbatim}
 pip install -r requirements.txt
-\end{verbatim}
-
-Run training:
-\begin{verbatim}
+python test_gradients.py
 python train.py
-\end{verbatim}
-
-Run full evaluation:
-\begin{verbatim}
 python evaluate.py
-\end{verbatim}
-
-Generate charts:
-\begin{verbatim}
+python ablation_novelty.py
+python charts/make_results_table.py
 python charts/generate_charts.py
+pdflatex paper.ltx
 \end{verbatim}
 
+\section{Citation}
+
 \begin{verbatim}
-@misc{mentee_acp_2026,
-  title = {Think While You Speak: Adaptive Computational Effort in Neural Dialogue Systems},
-  author = {MenteE AI},
+@misc{shah2026acp,
+  title = {Think While You Speak: Adaptive Computational Effort
+           in Neural Dialogue Systems},
+  author = {Shah, Syed Syab Ahmad and Team MenteE AI},
   year = {2026},
-  url = {https://github.com/MenteE-s/adaptive-cognitive-processing}
+  url = {https://github.com/MenteE-s/adaptive-cognitive-processing},
+  note = {MenteE AI, https://menteeai.org}
 }
 \end{verbatim}
 

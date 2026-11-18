@@ -1,0 +1,112 @@
+{
+  "summary": {
+    "with_novelty": {
+      "accuracy_mean": 0.9432666666666667,
+      "accuracy_std": 0.007554836567097632,
+      "route_acc_mean": 0.9868,
+      "route_acc_std": 0.0014966629547095898,
+      "delib_rate_mean": 0.6724,
+      "delib_rate_std": 0.00032659863237105444,
+      "easy_delib_mean": 0.02821128451380552,
+      "medium_delib_mean": 0.9963985594237695,
+      "hard_delib_mean": 0.9922062350119903,
+      "n_seeds": 3
+    },
+    "x_only": {
+      "accuracy_mean": 0.7368,
+      "accuracy_std": 0.08757183717763758,
+      "route_acc_mean": 0.9209999999999999,
+      "route_acc_std": 0.0034756294393965366,
+      "delib_rate_mean": 0.6624666666666666,
+      "delib_rate_std": 0.007611103000806713,
+      "easy_delib_mean": 0.11204481792717087,
+      "medium_delib_mean": 0.995998399359744,
+      "hard_delib_mean": 0.8790967226219024,
+      "n_seeds": 3
+    }
+  },
+  "per_seed": {
+    "with_novelty": [
+      {
+        "name": "with_novelty",
+        "accuracy": 0.9332,
+        "route_accuracy": 0.9864,
+        "delib_rate": 0.6728,
+        "easy_acc": 0.9765906362545018,
+        "medium_acc": 0.968187274909964,
+        "hard_acc": 0.854916067146283,
+        "easy_delib_rate": 0.029411764705882353,
+        "medium_delib_rate": 0.9987995198079231,
+        "hard_delib_rate": 0.9898081534772182,
+        "seed": 42
+      },
+      {
+        "name": "with_novelty",
+        "accuracy": 0.9514,
+        "route_accuracy": 0.9888,
+        "delib_rate": 0.672,
+        "easy_acc": 0.9807923169267707,
+        "medium_acc": 0.9591836734693877,
+        "hard_acc": 0.9142685851318945,
+        "easy_delib_rate": 0.02460984393757503,
+        "medium_delib_rate": 0.9957983193277311,
+        "hard_delib_rate": 0.9952038369304557,
+        "seed": 43
+      },
+      {
+        "name": "with_novelty",
+        "accuracy": 0.9452,
+        "route_accuracy": 0.9852,
+        "delib_rate": 0.6724,
+        "easy_acc": 0.9717887154861945,
+        "medium_acc": 0.978391356542617,
+        "hard_acc": 0.8854916067146283,
+        "easy_delib_rate": 0.030612244897959183,
+        "medium_delib_rate": 0.9945978391356542,
+        "hard_delib_rate": 0.9916067146282974,
+        "seed": 44
+      }
+    ],
+    "x_only": [
+      {
+        "name": "x_only",
+        "accuracy": 0.672,
+        "route_accuracy": 0.9248,
+        "delib_rate": 0.6564,
+        "easy_acc": 0.3709483793517407,
+        "medium_acc": 0.9543817527010804,
+        "hard_acc": 0.6906474820143885,
+        "easy_delib_rate": 0.09723889555822329,
+        "medium_delib_rate": 0.9963985594237695,
+        "hard_delib_rate": 0.8752997601918465,
+        "seed": 42
+      },
+      {
+        "name": "x_only",
+        "accuracy": 0.8606,
+        "route_accuracy": 0.9164,
+        "delib_rate": 0.6732,
+        "easy_acc": 0.9771908763505402,
+        "medium_acc": 0.9561824729891957,
+        "hard_acc": 0.6486810551558753,
+        "easy_delib_rate": 0.13505402160864347,
+        "medium_delib_rate": 0.9963985594237695,
+        "hard_delib_rate": 0.8878896882494005,
+        "seed": 43
+      },
+      {
+        "name": "x_only",
+        "accuracy": 0.6778,
+        "route_accuracy": 0.9218,
+        "delib_rate": 0.6578,
+        "easy_acc": 0.37034813925570226,
+        "medium_acc": 0.9651860744297719,
+        "hard_acc": 0.697841726618705,
+        "easy_delib_rate": 0.10384153661464586,
+        "medium_delib_rate": 0.9951980792316927,
+        "hard_delib_rate": 0.8741007194244604,
+        "seed": 44
+      }
+    ]
+  }
+}
