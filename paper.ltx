@@ -235,6 +235,13 @@ Monitor & Accuracy & Routing Acc. & Delib. Rate \\
 
 The x-only monitor still learns a similar overall deliberation rate, 66.2 percent versus 67.2 percent, but it allocates that deliberation poorly. It deliberates on 11.2 percent of Easy inputs and only 87.9 percent of Hard inputs. The Hard misroutes are expensive: the linear fast path cannot fit the product target, so a small number of them pulls task accuracy down from 94.3 to 73.7 percent. The memory feature is therefore not decorative. It stabilizes the routing decision at the margin where an error costs the most.
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{charts/ablation.png}
+\caption{Memory ablation. Left: task and routing accuracy with and without the novelty feature. Right: deliberation rate by difficulty. Without the novelty feature, the monitor over-deliberates on Easy inputs and under-deliberates on Hard inputs, where the fast path is most likely to fail.}
+\label{fig:ablation}
+\end{figure}
+
 \subsection{Cost of the Monitor}
 
 Deliberation rate is not the same as total compute. The monitor scans $K=30$ memory keys of dimension 16 on every input, which costs about 496 multiply-accumulates, compared with about 864 for the deliberate MLP. At the observed deliberation rate of 67 percent, the total cost is therefore not lower than always-deliberate. The routing policy is near-optimal, but the current memory readout is too expensive to turn that policy into a net saving. A memory of a few keys, or a low-dimensional sketch, would move the crossover. We report deliberation rate as the routing metric and leave wall-clock optimization to future work.

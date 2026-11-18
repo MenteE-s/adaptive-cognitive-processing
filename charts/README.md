@@ -13,12 +13,14 @@ Organization: [MenteE AI](https://menteeai.org)
 
 | File | Description |
 |------|-------------|
-| `generate_charts.py` | Reads `evaluation_results.json` and writes the PNG figures |
+| `generate_charts.py` | Reads the JSON results and writes the PNG figures |
 | `make_results_table.py` | Reads `evaluation_results.json` and writes the LaTeX table snippets |
 | `model_comparison.png` | Accuracy and deliberation rate by model |
 | `difficulty_breakdown.png` | Accuracy per difficulty level (Easy / Medium / Hard) |
 | `routing_by_difficulty.png` | ACP deliberation rate by task difficulty |
 | `pareto.png` | Accuracy vs deliberation rate |
+| `ablation.png` | Memory ablation: accuracy and deliberation allocation |
+| `hero_summary.png` | One-glance summary of the four key results (for posts) |
 | `results_table.tex` | Main comparison table (generated) |
 | `difficulty_table.tex` | Per-difficulty table (generated) |
 | `ablation_table.tex` | Memory versus x-only ablation table (generated) |
@@ -37,16 +39,17 @@ python charts/generate_charts.py
 
 ## LaTeX
 
-`paper.ltx` references the figures as:
+`paper.ltx` references these files from this folder:
 
 - `charts/routing_by_difficulty.png`
 - `charts/difficulty_breakdown.png`
 - `charts/pareto.png`
-
-It also inputs the generated tables:
-
+- `charts/ablation.png`
 - `charts/results_table.tex`
 - `charts/difficulty_table.tex`
+- `charts/ablation_table.tex`
+
+`charts/hero_summary.png` is a one-glance summary for social posts; the paper does not embed it.
 
 Keep this folder next to `paper.ltx` when compiling on Overleaf or locally with `pdflatex`. If your online IDE requires a `.tex` extension, rename `paper.ltx` to `paper.tex`; the content is standard LaTeX.
 
