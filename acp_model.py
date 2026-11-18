@@ -1,6 +1,7 @@
 """
 Adaptive Cognitive Processing (ACP) - NumPy Smoke Test
 Architecture: Fast path + Episodic Memory Monitor + Deliberate Refinement
+Configurable dimensions for expanded experiments.
 """
 
 import numpy as np
@@ -24,8 +25,8 @@ def sigmoid_derivative_from_output(p):
 
 
 class ACP:
-    def __init__(self, input_dim=8, hidden_dim=12, output_dim=1,
-                 memory_size=15, seed=42):
+    def __init__(self, input_dim=16, hidden_dim=24, output_dim=1,
+                 memory_size=30, seed=42):
         rng = np.random.RandomState(seed)
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim

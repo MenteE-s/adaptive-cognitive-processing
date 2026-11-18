@@ -1,28 +1,21 @@
 import numpy as np
 from acp_model import ACP
 from data import generate_dataset, fill_episodic_memory
+from baselines import AlwaysFast, AlwaysDeliberate, FixedMLP, RandomRouter, train_baseline
 
 
-def train():
-    input_dim = 8
-    hidden_dim = 12
-    output_dim = 1
-    memory_size = 15
-    epochs = 100
-    lr = 0.01
-    alpha = 1.0   # routing loss weight
-    lam = 0.1     # compute cost weight
-
-    X, Y, Y_route = generate_dataset(n_samples=400, seed=123)
-
+def train_acp(X, Y, Y_route, input_dim=32, hidden_dim=48, output_dim=1,
+              memory_size=40, epochs=100, lr=0.01, alpha=1.0, lam=0.1,
+              seed=42):
+    """Train the ACP model. Returns trained model and history dict."""
     model = ACP(input_dim=input_dim, hidden_dim=hidden_dim,
-                output_dim=output_dim, memory_size=memory_size, seed=42)
+                output_dim=output_dim, memory_size=memory_size, seed=seed)
     model = fill_episodic_memory(model)
 
     history = {'loss': [], 'acc': [], 'route_acc': [], 'delib_rate': []}
 
     for epoch in range(epochs):
-        perm = np.random.permutation(len(X))
+        perm = np.random.RandomState(seed + epoch).permutation(len(X))
         epoch_loss = 0.0
         correct = 0
         route_correct = 0
@@ -37,7 +30,7 @@ def train():
                 x, y, y_route, alpha=alpha, lam=lam
             )
 
-            # SGD update (in-place on numpy arrays)
+            # SGD update
             for key in grads:
                 arr = getattr(model, key)
                 arr -= lr * grads[key]
@@ -58,15 +51,54 @@ def train():
         history['route_acc'].append(route_correct / n)
         history['delib_rate'].append(delib_count / n)
 
-        if epoch % 10 == 0 or epoch == epochs - 1:
-            print(f"Epoch {epoch:3d} | "
-                  f"Loss {history['loss'][-1]:.4f} | "
-                  f"Acc {history['acc'][-1]:.3f} | "
-                  f"RouteAcc {history['route_acc'][-1]:.3f} | "
-                  f"DelibRate {history['delib_rate'][-1]:.3f}")
-
     return model, history
 
 
+def train_all_baselines(X, Y, input_dim=32, hidden_dim=48, output_dim=1,
+                        epochs=100, lr=0.01, seed=42):
+    """Train all baseline models. Returns dict of trained models."""
+    baselines = {}
+
+    # Always Fast
+    bf = AlwaysFast(input_dim=input_dim, hidden_dim=hidden_dim,
+                    output_dim=output_dim, seed=seed)
+    baselines['AlwaysFast'] = train_baseline(bf, X, Y, epochs=epochs, lr=lr)
+
+    # Always Deliberate
+    bd = AlwaysDeliberate(input_dim=input_dim, hidden_dim=hidden_dim,
+                          output_dim=output_dim, seed=seed)
+    baselines['AlwaysDeliberate'] = train_baseline(bd, X, Y, epochs=epochs, lr=lr)
+
+    # Fixed MLP (comparable size)
+    fm = FixedMLP(input_dim=input_dim, hidden_dim=hidden_dim + 8,
+                  output_dim=output_dim, seed=seed)
+    baselines['FixedMLP'] = train_baseline(fm, X, Y, epochs=epochs, lr=lr)
+
+    # Random Router
+    rr = RandomRouter(input_dim=input_dim, hidden_dim=hidden_dim,
+                      output_dim=output_dim, p_deliberate=0.5, seed=seed)
+    baselines['RandomRouter'] = rr  # no training needed
+
+    return baselines
+
+
 if __name__ == "__main__":
-    model, history = train()
+    input_dim = 32
+    hidden_dim = 48
+    output_dim = 1
+    memory_size = 40
+    n_samples = 5000
+
+    X, Y, Y_route = generate_dataset(n_samples=n_samples, seed=123,
+                                     input_dim=input_dim)
+
+    model, history = train_acp(X, Y, Y_route, input_dim=input_dim,
+                               hidden_dim=hidden_dim, output_dim=output_dim,
+                               memory_size=memory_size, epochs=100, lr=0.01,
+                               seed=42)
+
+    print(f"Epoch 99 | "
+          f"Loss {history['loss'][-1]:.4f} | "
+          f"Acc {history['acc'][-1]:.3f} | "
+          f"RouteAcc {history['route_acc'][-1]:.3f} | "
+          f"DelibRate {history['delib_rate'][-1]:.3f}")

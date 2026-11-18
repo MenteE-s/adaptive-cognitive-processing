@@ -5,3 +5,5 @@ results.png
 routing_by_difficulty.png
 .env
 .DS_Store
+charts/*.png
+charts/evaluation_results.json
